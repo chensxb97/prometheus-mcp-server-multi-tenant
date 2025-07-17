@@ -13,27 +13,36 @@ def setup_environment():
     else:
         logger.info("Environment configuration loaded", source="environment variables", note="No .env file found")
 
-    if not config.url:
+    # Validate tenant configuration
+    if not config.tenants:
         logger.error(
             "Missing required configuration",
-            error="PROMETHEUS_URL environment variable is not set",
-            suggestion="Please set it to your Prometheus server URL",
-            example="http://your-prometheus-server:9090"
+            error="No tenants configured",
+            suggestion="Please set either PROMETHEUS_URL (single tenant) or PROMETHEUS_TENANTS (multi-tenant) environment variable"
         )
         return False
     
-    # Determine authentication method
-    auth_method = "none"
-    if config.username and config.password:
-        auth_method = "basic_auth"
-    elif config.token:
-        auth_method = "bearer_token"
+    # Log tenant configuration summary
+    tenant_summary = []
+    for tenant in config.tenants:
+        auth_method = "none"
+        if tenant.username and tenant.password:
+            auth_method = "basic_auth"
+        elif tenant.token:
+            auth_method = "bearer_token"
+        
+        tenant_summary.append({
+            "name": tenant.name,
+            "url": tenant.url,
+            "authentication": auth_method,
+            "org_id": tenant.org_id if tenant.org_id else None
+        })
     
     logger.info(
-        "Prometheus configuration validated",
-        server_url=config.url,
-        authentication=auth_method,
-        org_id=config.org_id if config.org_id else None
+        "Multi-tenant Prometheus configuration validated",
+        tenant_count=len(config.tenants),
+        default_tenant=config.default_tenant,
+        tenants=tenant_summary
     )
     
     return True
@@ -41,11 +50,18 @@ def setup_environment():
 def run_server():
     """Main entry point for the Prometheus MCP Server"""
     # Setup environment
-    if not setup_environment():
-        logger.error("Environment setup failed, exiting")
+    try:
+        if not setup_environment():
+            logger.error("Environment setup failed, exiting")
+            sys.exit(1)
+    except Exception as e:
+        logger.error("Failed to load configuration", error=str(e), error_type=type(e).__name__)
         sys.exit(1)
     
-    logger.info("Starting Prometheus MCP Server", transport="stdio")
+    logger.info("Starting Prometheus MCP Server", 
+               transport="stdio", 
+               tenant_count=len(config.tenants),
+               default_tenant=config.default_tenant)
     
     # Run the server with the stdio transport
     mcp.run(transport="stdio")
