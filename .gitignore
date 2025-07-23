@@ -49,5 +49,14 @@ htmlcov/
 # Claude Code
 CLAUDE.md
 
+# Sensitive files with credentials
+run_queries.py
+*_queries.py
+*_config.json
+*_config.yaml
+*_config.yml
+*_endpoints.csv
+*_secrets.*
+*_credentials.*
 
 .specstory
