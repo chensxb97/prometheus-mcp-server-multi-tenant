@@ -2,7 +2,7 @@
 import sys
 import dotenv
 from prometheus_mcp_server.server import mcp, config, TransportType
-from prometheus_mcp_server.logging_config import setup_logging, get_logger
+from prometheus_mcp_server.logging_config import setup_logging
 
 # Initialize structured logging
 logger = setup_logging()
