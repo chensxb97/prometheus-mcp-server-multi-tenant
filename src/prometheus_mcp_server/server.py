@@ -11,12 +11,40 @@ import dotenv
 import requests
 from mcp.server.fastmcp import FastMCP
 from prometheus_mcp_server.logging_config import get_logger
+from enum import Enum
 
 dotenv.load_dotenv()
 mcp = FastMCP("Prometheus MCP")
 
 # Get logger instance
 logger = get_logger()
+
+class TransportType(str, Enum):
+    """Supported MCP server transport types."""
+
+    STDIO = "stdio"
+    HTTP = "http"
+    SSE = "sse"
+
+    @classmethod
+    def values(cls) -> list[str]:
+        """Get all valid transport values."""
+        return [transport.value for transport in cls]
+    
+class MCPServerConfig:
+    """Global Configuration for MCP."""
+    mcp_server_transport: TransportType
+    mcp_bind_host: str = "127.0.0.1"
+    mcp_bind_port: int = 8000
+
+    def __post_init__(self):
+        """Validate mcp configuration."""
+        if not self.mcp_server_transport:
+            raise ValueError("MCP SERVER TRANSPORT is required")
+        if not self.mcp_bind_host:
+            raise ValueError(f"MCP BIND HOST is required")
+        if not self.mcp_bind_port:
+            raise ValueError(f"MCP BIND PORT is required")
 
 @dataclass
 class PrometheusTenant:
@@ -42,6 +70,7 @@ class PrometheusConfig:
     """Multi-tenant Prometheus configuration."""
     tenants: List[PrometheusTenant]
     default_tenant: Optional[str] = None
+    mcp_server_config: MCPServerConfig
     
     def __post_init__(self):
         """Validate configuration and set default tenant."""
@@ -69,6 +98,14 @@ class PrometheusConfig:
 
 def load_multi_tenant_config() -> PrometheusConfig:
     """Load multi-tenant configuration from environment variables."""
+    
+    # Global MCP transport config
+    MCP_TRANSPORT = os.getenv("PROMETHEUS_MCP_SERVER_TRANSPORT", TransportType.STDIO.value).lower()
+    if MCP_TRANSPORT not in TransportType.values():
+        raise ValueError(f"Invalid MCP transport '{MCP_TRANSPORT}'. Valid options: {TransportType.values()}")
+    MCP_BIND_HOST = os.getenv("PROMETHEUS_MCP_BIND_HOST")
+    MCP_BIND_PORT = int(os.getenv("PROMETHEUS_MCP_BIND_PORT"))
+
     # Check if we have a JSON configuration for multiple tenants
     tenants_json = os.environ.get("PROMETHEUS_TENANTS")
     
@@ -90,7 +127,11 @@ def load_multi_tenant_config() -> PrometheusConfig:
                 tenants.append(tenant)
             
             default_tenant = os.environ.get("PROMETHEUS_DEFAULT_TENANT")
-            return PrometheusConfig(tenants=tenants, default_tenant=default_tenant)
+            return PrometheusConfig(
+                tenants=tenants,
+                default_tenant=default_tenant,
+                mcp_server_config=MCPServerConfig(MCP_TRANSPORT, MCP_BIND_HOST, MCP_BIND_PORT)
+            )
             
         except json.JSONDecodeError as e:
             logger.error("Failed to parse PROMETHEUS_TENANTS JSON", error=str(e))
@@ -113,7 +154,11 @@ def load_multi_tenant_config() -> PrometheusConfig:
             org_id=os.environ.get("ORG_ID")
         )
         
-        return PrometheusConfig(tenants=[tenant], default_tenant="default")
+        return PrometheusConfig(
+            tenants=[tenant], 
+            default_tenant="default",
+            mcp_server_config=MCPServerConfig(MCP_TRANSPORT, MCP_BIND_HOST, MCP_BIND_PORT)
+        )
 
 # Load configuration
 config = load_multi_tenant_config()
