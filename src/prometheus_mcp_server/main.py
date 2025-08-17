@@ -58,20 +58,21 @@ def run_server():
         logger.error("Failed to load configuration", error=str(e), error_type=type(e).__name__)
         sys.exit(1)
 
-    transport = config.mcp_server_transport
+    mcp_config = config.mcp_server_config
+    transport = mcp_config.mcp_server_transport
 
     # For HTTP and SSE transports, we need to specify host and port
     http_transports = [TransportType.HTTP.value, TransportType.SSE.value]
     if transport in http_transports:
         # Use the configured bind host (defaults to 127.0.0.1, can be set to 0.0.0.0)
         # and bind port (defaults to 8000)
-        mcp.run(transport=transport, host=config.mcp_bind_host, port=config.mcp_bind_port)
+        mcp.run(transport=transport, host=mcp_config.mcp_bind_host, port=mcp_config.mcp_bind_port)
         logger.info("Starting Prometheus MCP Server", 
                 transport=transport, 
-                host=config.mcp_bind_host,
-                port=config.mcp_bind_port,
-                tenant_count=len(config.tenants),
-                default_tenant=config.default_tenant)
+                host=mcp_config.mcp_bind_host,
+                port=mcp_config.mcp_bind_port,
+                tenant_count=len(mcp_config.tenants),
+                default_tenant=mcp_config.default_tenant)
     else:
         # For stdio transport, no host or port is needed
         mcp.run(transport=transport)
